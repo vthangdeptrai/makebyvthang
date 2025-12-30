@@ -1,0 +1,102 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local player = game:GetService("Players").LocalPlayer
+local net = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
+
+local regAtk = net:FindFirstChild("RE/RegisterAttack") or net:FindFirstChild("RegisterAttack")
+local regHit = net:FindFirstChild("RE/RegisterHit") or net:FindFirstChild("RegisterHit")
+
+-- 1. RESET
+_G.AutoAttack = false
+_G.StopOldLoop = true
+task.wait(0.1)
+_G.StopOldLoop = false
+
+if player.PlayerGui:FindFirstChild("BF_Ultimate_AOE") then
+    player.PlayerGui:FindFirstChild("BF_Ultimate_AOE"):Destroy()
+end
+
+-- 2. GUI (Draggable)
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local ToggleButton = Instance.new("TextButton")
+ScreenGui.Parent = player.PlayerGui
+ScreenGui.Name = "BF_Ultimate_AOE"
+
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+MainFrame.Position = UDim2.new(0, 15, 0.5, -25)
+MainFrame.Size = UDim2.new(0, 100, 0, 50)
+MainFrame.Active = true
+
+local dragging, dragStart, startPos
+MainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true; dragStart = input.Position; startPos = MainFrame.Position
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+MainFrame.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end end)
+Instance.new("UICorner", MainFrame)
+
+ToggleButton.Parent = MainFrame
+ToggleButton.Size = UDim2.new(0.9, 0, 0.8, 0)
+ToggleButton.Position = UDim2.new(0.05, 0, 0.1, 0)
+ToggleButton.Text = "AOE: OFF"
+ToggleButton.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+ToggleButton.TextColor3 = Color3.new(1,1,1)
+ToggleButton.Font = Enum.Font.SourceSansBold
+Instance.new("UICorner", ToggleButton)
+
+ToggleButton.MouseButton1Click:Connect(function()
+    _G.AutoAttack = not _G.AutoAttack
+    ToggleButton.Text = _G.AutoAttack and "AOE: ON" or "AOE: OFF"
+    ToggleButton.BackgroundColor3 = _G.AutoAttack and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
+end)
+
+-- 3. LOGIC BUFF TỐC ĐÁNH & ĐÁNH TOÀN BỘ AOE
+task.spawn(function()
+    while not _G.StopOldLoop do
+        -- Tốc độ vòng lặp cực nhanh để Fast Attack hoạt động
+        task.wait(0.001) 
+        if _G.AutoAttack then
+            pcall(function()
+                local enemiesFolder = workspace:FindFirstChild("Enemies")
+                local char = player.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                
+                if enemiesFolder and root then
+                    local targetList = {}
+                    local mainTarget = nil
+                    
+                    -- QUÉT TOÀN BỘ QUÁI TRONG AOE (Không giới hạn số lượng)
+                    for _, npc in ipairs(enemiesFolder:GetChildren()) do
+                        local hum = npc:FindFirstChildOfClass("Humanoid")
+                        local npcP = npc:FindFirstChild("HumanoidRootPart")
+                        
+                        -- Kiểm tra quái còn sống và trong tầm đánh (300)
+                        if hum and hum.Health > 0 and npcP and (npcP.Position - root.Position).Magnitude <= 300 then
+                            if not mainTarget then mainTarget = npcP end
+                            
+                            -- Đưa toàn bộ quái vào bảng để đánh cùng lúc
+                            table.insert(targetList, {npc, npcP})
+                        end
+                    end
+
+                    if mainTarget and #targetList > 0 then
+                        -- BUFF TỐC ĐÁNH: Gửi Attack liên tục không cooldown
+                        regAtk:FireServer(0.01) 
+                        
+                        -- ĐÁNH TOÀN BỘ: Gửi danh sách đã quét được
+                        regHit:FireServer(mainTarget, targetList)
+                    end
+                end
+            end)
+        end
+    end
+end)
