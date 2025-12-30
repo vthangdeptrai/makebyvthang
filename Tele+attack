@@ -1,0 +1,130 @@
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+local player = game:GetService("Players").LocalPlayer
+local net = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
+
+local regAtk = net:FindFirstChild("RE/RegisterAttack") or net:FindFirstChild("RegisterAttack")
+local regHit = net:FindFirstChild("RE/RegisterHit") or net:FindFirstChild("RegisterHit")
+
+-- 1. CẤU HÌNH TỐI ƯU
+_G.AutoFarm = false
+_G.BaseHeight = 40 
+_G.CurrentHeight = 40
+_G.DetectionRange = 5000 
+_G.AttackRange = 350    
+_G.StopOldLoop = true
+task.wait(0.1)
+_G.StopOldLoop = false
+
+-- 2. GUI MINI (DRAGGABLE)
+if player.PlayerGui:FindFirstChild("BF_VThang_Final_V2") then
+    player.PlayerGui:FindFirstChild("BF_VThang_Final_V2"):Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui", player.PlayerGui)
+ScreenGui.Name = "BF_VThang_Final_V2"
+
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+MainFrame.Position = UDim2.new(0, 20, 0.5, -25)
+MainFrame.Size = UDim2.new(0, 110, 0, 55)
+MainFrame.Active = true
+Instance.new("UICorner", MainFrame)
+
+-- Hệ thống kéo thả
+local dragging, dragStart, startPos
+MainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true; dragStart = input.Position; startPos = MainFrame.Position
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+MainFrame.InputEnded:Connect(function(input) dragging = false end)
+
+local ToggleBtn = Instance.new("TextButton", MainFrame)
+ToggleBtn.Size = UDim2.new(0.9, 0, 0.8, 0)
+ToggleBtn.Position = UDim2.new(0.05, 0, 0.1, 0)
+ToggleBtn.Text = "AUTO FARM"
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+ToggleBtn.TextColor3 = Color3.new(1, 1, 1)
+ToggleBtn.Font = Enum.Font.SourceSansBold
+Instance.new("UICorner", ToggleBtn)
+
+ToggleBtn.MouseButton1Click:Connect(function()
+    _G.AutoFarm = not _G.AutoFarm
+    ToggleBtn.Text = _G.AutoFarm and "ON" or "OFF"
+    ToggleBtn.BackgroundColor3 = _G.AutoFarm and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(150, 0, 0)
+end)
+
+-- 3. LOGIC THAY ĐỔI ĐỘ CAO MỖI 5 GIÂY
+task.spawn(function()
+    while not _G.StopOldLoop do
+        if _G.AutoFarm then
+            _G.CurrentHeight = _G.BaseHeight + 5
+            task.wait(5)
+            _G.CurrentHeight = _G.BaseHeight
+            task.wait(5)
+        else
+            task.wait(1)
+        end
+    end
+end)
+
+-- 4. LOGIC BAY & ĐÁNH MULTI-HIT
+task.spawn(function()
+    while not _G.StopOldLoop do
+        task.wait()
+        if _G.AutoFarm then
+            pcall(function()
+                local char = player.Character
+                local root = char and char:FindFirstChild("HumanoidRootPart")
+                local enemies = workspace.Enemies:GetChildren()
+                
+                local targetNPC = nil
+                local shortestDistance = _G.DetectionRange
+                
+                for _, npc in ipairs(enemies) do
+                    local hum = npc:FindFirstChildOfClass("Humanoid")
+                    local npcP = npc:FindFirstChild("HumanoidRootPart")
+                    if hum and hum.Health > 0 and npcP then
+                        local distance = (npcP.Position - root.Position).Magnitude
+                        if distance < shortestDistance then
+                            shortestDistance = distance
+                            targetNPC = npcP
+                        end
+                    end
+                end
+
+                if root and targetNPC then
+                    -- Bay theo độ cao thay đổi linh hoạt
+                    root.CFrame = CFrame.new(targetNPC.Position + Vector3.new(0, _G.CurrentHeight, 0))
+                    
+                    local bv = root:FindFirstChild("VThangFinal") or Instance.new("BodyVelocity", root)
+                    bv.Name = "VThangFinal"
+                    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                    bv.Velocity = Vector3.new(0, 0, 0)
+                    
+                    regAtk:FireServer(0.5)
+                    
+                    for _, npc in ipairs(enemies) do
+                        local hum = npc:FindFirstChildOfClass("Humanoid")
+                        local npcP = npc:FindFirstChild("HumanoidRootPart")
+                        if hum and hum.Health > 0 and npcP and (npcP.Position - root.Position).Magnitude <= _G.AttackRange then
+                            task.spawn(function()
+                                regHit:FireServer(npcP, {{npc, npcP}})
+                            end)
+                        end
+                    end
+                end
+            end)
+        else
+            local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+            if root and root:FindFirstChild("VThangFinal") then root.VThangFinal:Destroy() end
+        end
+    end
+end)
