@@ -1,0 +1,155 @@
+-- /// SERVICES ///
+local LP = game:GetService("Players").LocalPlayer
+local RS = game:GetService("ReplicatedStorage")
+local WS = game:GetService("Workspace")
+local TS = game:GetService("TweenService")
+
+-- /// CONFIG BYPASS ///
+_G.AutoFarm = false
+_G.TweenSpeed = 200 
+local StartTime = os.time()
+
+-- /// XÁC ĐỊNH SEA ///
+local Sea1, Sea2, Sea3 = false, false, false
+if game.PlaceId == 2753915549 then Sea1 = true 
+elseif game.PlaceId == 4442272183 then Sea2 = true 
+elseif game.PlaceId == 7449423635 then Sea3 = true end
+_G.Sea1, _G.Sea2, _G.Sea3 = Sea1, Sea2, Sea3
+
+-- /// LOAD DATA GITHUB ///
+local rawUrl = "https://raw.githubusercontent.com/vthangdeptrai/makebyvthang/refs/heads/main/Quest"
+local function UpdateQuestData()
+    pcall(function()
+        local result = game:HttpGet(rawUrl)
+        local fixedCode = "local Sea1, Sea2, Sea3 = _G.Sea1, _G.Sea2, _G.Sea3;\n" .. result
+        loadstring(fixedCode)()
+    end)
+end
+UpdateQuestData()
+
+-- /// HÀM DI CHUYỂN FIX GÓC NHÌN ///
+function MoveTo(Pos)
+    local root = LP.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    for _, v in pairs(root:GetChildren()) do
+        if v:IsA("BodyVelocity") or v:IsA("BodyGyro") then v:Destroy() end
+    end
+    local dist = (Pos.Position - root.Position).Magnitude
+    LP.Character.Humanoid.PlatformStand = true
+    local bg = Instance.new("BodyGyro", root)
+    bg.P = 9e4; bg.MaxTorque = Vector3.new(9e9, 9e9, 9e9); bg.CFrame = root.CFrame
+    if dist > 10 then
+        local tween = TS:Create(root, TweenInfo.new(dist/_G.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = Pos})
+        tween:Play()
+        spawn(function()
+            while tween.PlaybackState == Enum.PlaybackState.Playing do
+                if not _G.AutoFarm then tween:Cancel() break end
+                for _, part in pairs(LP.Character:GetDescendants()) do
+                    if part:IsA("BasePart") then part.CanCollide = false end
+                end
+                task.wait()
+            end
+            if bg then bg:Destroy() end
+        end)
+        tween.Completed:Wait()
+    else
+        root.CFrame = Pos
+        if bg then bg:Destroy() end
+    end
+end
+
+-- /// GIAO DIỆN V.THẮNG.?-KAITUN ///
+local ScreenGui = Instance.new("ScreenGui", LP.PlayerGui); ScreenGui.Name = "VThang_Pro_Fix"
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0, 320, 0, 260); Main.Position = UDim2.new(0.5, -160, 0.5, -130)
+Main.BackgroundColor3 = Color3.fromRGB(10, 10, 10); Main.BackgroundTransparency = 0.5; Main.Active = true; Main.Draggable = true
+Instance.new("UICorner", Main); local Stroke = Instance.new("UIStroke", Main); Stroke.Color = Color3.fromRGB(170, 0, 255); Stroke.Thickness = 2
+local Title = Instance.new("TextLabel", Main); Title.Size = UDim2.new(1, 0, 0, 45); Title.BackgroundTransparency = 1; Title.Text = "V.Thắng.?-Kaitun"; Title.TextColor3 = Color3.fromRGB(200, 150, 255); Title.Font = "GothamBold"; Title.TextSize = 18
+
+local Content = Instance.new("Frame", Main); Content.Size = UDim2.new(1, 0, 1, -50); Content.Position = UDim2.new(0, 0, 0, 50); Content.BackgroundTransparency = 1
+local Layout = Instance.new("UIListLayout", Content); Layout.HorizontalAlignment = "Center"; Layout.Padding = UDim.new(0, 6)
+
+local function NewLbl(color)
+    local l = Instance.new("TextLabel", Content); l.Size = UDim2.new(1, 0, 0, 20); l.BackgroundTransparency = 1; l.TextColor3 = color; l.Font = "GothamSemibold"; l.TextSize = 14; l.TextXAlignment = "Center"
+    return l
+end
+local LvlLbl = NewLbl(Color3.new(1,1,1)); local BeliLbl = NewLbl(Color3.fromRGB(0, 255, 127)); local FragLbl = NewLbl(Color3.fromRGB(180, 70, 255)); local TimeLbl = NewLbl(Color3.new(0.8, 0.8, 0.8))
+local Toggle = Instance.new("TextButton", Content); Toggle.Size = UDim2.new(0, 160, 0, 35); Toggle.BackgroundColor3 = Color3.fromRGB(180, 0, 0); Toggle.Text = "AUTO: OFF"; Toggle.TextColor3 = Color3.new(1,1,1); Toggle.Font = "GothamBold"; Instance.new("UICorner", Toggle)
+
+Toggle.MouseButton1Click:Connect(function()
+    _G.AutoFarm = not _G.AutoFarm
+    Toggle.Text = _G.AutoFarm and "AUTO: ON" or "AUTO: OFF"
+    Toggle.BackgroundColor3 = _G.AutoFarm and Color3.fromRGB(0, 160, 80) or Color3.fromRGB(180, 0, 0)
+end)
+
+-- /// FIX LỖI TREO LÂU KHÔNG ĐÁNH ///
+local lastEquip = 0
+function EquipWeapon()
+    if tick() - lastEquip > 5 or not LP.Character:FindFirstChildOfClass("Tool") then
+        for _, v in pairs(LP.Backpack:GetChildren()) do
+            if v.ToolTip == "Melee" or v.Name:find("Human") or v.Name:find("Leg") or v.Name:find("Claw") then
+                LP.Character.Humanoid:EquipTool(v)
+                lastEquip = tick()
+                break
+            end
+        end
+    end
+end
+
+-- /// MAIN LOOP ///
+task.spawn(function()
+    while task.wait() do
+        pcall(function()
+            local sec = os.time() - StartTime
+            LvlLbl.Text = "Level: " .. LP.Data.Level.Value
+            BeliLbl.Text = "Beli: " .. string.format("%d", LP.Data.Beli.Value)
+            FragLbl.Text = "Fragments: " .. LP.Data.Fragments.Value
+            TimeLbl.Text = string.format("Time: %02d:%02d:%02d", math.floor(sec/3600), math.floor((sec%3600)/60), sec%60)
+        end)
+
+        if _G.AutoFarm then
+            pcall(function()
+                if type(CheckLevel) == "function" then CheckLevel() end
+                local qGui = LP.PlayerGui.Main.Quest
+                
+                if not qGui.Visible or qGui.Container.QuestTitle.Title.Text == "" then
+                    MoveTo(CFrameQ)
+                    if (LP.Character.HumanoidRootPart.Position - CFrameQ.Position).Magnitude < 15 then
+                        task.wait(0.5)
+                        RS.Remotes.CommF_:InvokeServer("StartQuest", NameQuest, QuestLv)
+                    end
+                else
+                    local target = nil
+                    for _, v in pairs(WS.Enemies:GetChildren()) do
+                        if v.Name == NameMon and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
+                            target = v; break
+                        end
+                    end
+                    
+                    if target then
+                        -- Fix góc nhìn & noclip liên tục khi farm
+                        LP.Character.HumanoidRootPart.CFrame = target.HumanoidRootPart.CFrame * CFrame.new(0, 25, 0)
+                        for _, part in pairs(LP.Character:GetDescendants()) do
+                            if part:IsA("BasePart") then part.CanCollide = false end
+                        end
+                        
+                        -- Cầm vũ khí (đã fix treo lâu)
+                        EquipWeapon()
+                        
+                        -- Fast Attack - Gọi trực tiếp Remote để tránh lỗi nhận diện tool
+                        local net = RS:WaitForChild("Modules"):WaitForChild("Net")
+                        net["RE/RegisterAttack"]:FireServer(0.5)
+                        net["RE/RegisterHit"]:FireServer(target.HumanoidRootPart, {{target, target.HumanoidRootPart}})
+                    else
+                        -- Fix lỗi đứng im khi quái chưa hồi: di chuyển nhẹ quanh bãi farm
+                        if CFrameMon then 
+                            MoveTo(CFrameMon * CFrame.new(math.random(-5,5), 25, math.random(-5,5))) 
+                        end
+                    end
+                end
+            end)
+        else
+            if LP.Character:FindFirstChild("Humanoid") then LP.Character.Humanoid.PlatformStand = false end
+        end
+    end
+end)
