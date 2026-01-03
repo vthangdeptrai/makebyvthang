@@ -1,3 +1,20 @@
+local placeId = game.PlaceId
+Sea1 = placeId == 2753915549
+Sea2 = placeId == 4442272160
+Sea3 = placeId == 7449959388
+function Tween(Target)
+    if not game.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+    local Speed = 300 -- Bạn có thể chỉnh tốc độ ở đây
+    local Distance = (Target.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+    local TweenService = game:GetService("TweenService")
+    local info = TweenInfo.new(Distance / Speed, Enum.EasingStyle.Linear)
+    local tween = TweenService:Create(game.Players.LocalPlayer.Character.HumanoidRootPart, info, {CFrame = Target})
+    tween:Play()
+end
+local Tool = game.Players.LocalPlayer.Backpack:FindFirstChild("Combat") or game.Players.LocalPlayer.Character:FindFirstChild("Combat")
+if Tool and not game.Players.LocalPlayer.Character:FindFirstChild(Tool.Name) then
+    game.Players.LocalPlayer.Humanoid:EquipTool(Tool)
+end
 function CheckLevel()
     local v116 = game:GetService("Players").LocalPlayer.Data.Level.Value
     if Sea1 then
@@ -776,3 +793,39 @@ elseif Sea3 then
         "Tiki Outpost"
     }
 end
+_G.AutoLevel = true -- Bật cái này để bắt đầu farm
+
+spawn(function()
+    while task.wait() do
+        if _G.AutoLevel then
+            pcall(function()
+                CheckLevel() -- Gọi cái hàm trong file quest.txt của bạn
+                
+                local QuestGui = game:GetService("Players").LocalPlayer.PlayerGui.Main.Quest
+                -- Kiểm tra xem đã có Quest chưa
+                if not string.find(QuestGui.Container.QuestTitle.Title.Text, NameMon) then
+                    -- Nếu chưa có: Bay tới NPC nhận Quest
+                    Tween(CFrameQ)
+                    if (CFrameQ.Position - game.Players.LocalPlayer.Character.HumanoidRootPart.Position).Magnitude <= 10 then
+                        game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("StartQuest", NameQuest, QuestLv)
+                    end
+                else
+                    -- Nếu có rồi: Bay tới chỗ quái
+                    local TargetMob = workspace.Enemies:FindFirstChild(Ms) or workspace.Enemies:FindFirstChild(NameMon)
+                    
+                    if TargetMob and TargetMob:FindFirstChild("HumanoidRootPart") and TargetMob.Humanoid.Health > 0 then
+                        -- Bay lên đầu quái để đánh
+                        game.Players.LocalPlayer.Character.HumanoidRootPart.CFrame = TargetMob.HumanoidRootPart.CFrame * CFrame.new(0, 10, 0)
+                        
+                        -- Lệnh đánh (Sử dụng remote cơ bản của Blox Fruit)
+                        game:GetService("ReplicatedStorage").Modules.Net["RE/RegisterAttack"]:FireServer(0)
+                        game:GetService("ReplicatedStorage").Modules.Net["RE/RegisterHit"]:FireServer(TargetMob.HumanoidRootPart, {TargetMob.HumanoidRootPart})
+                    else
+                        -- Nếu chưa thấy quái xuất hiện thì bay tới điểm chờ quái
+                        Tween(CFrameMon)
+                    end
+                end
+            end)
+        end
+    end
+end)
